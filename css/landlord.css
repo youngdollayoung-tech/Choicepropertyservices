@@ -307,7 +307,8 @@
   padding-bottom: var(--space-3); border-bottom: 1.5px solid var(--color-border-muted);
   letter-spacing: var(--tracking-snug);
 }
-.form-section { margin-bottom: var(--space-8); }
+.form-section { display: none; margin-bottom: var(--space-8); }
+.form-section.active { display: block; }
 
 
 /* ── LISTING STEPS (new-listing wizard) ───────────────────── */
