@@ -965,14 +965,16 @@
     const photoFileIds = []; // I-028: parallel fileId array for CDN deletion (I-015)
 
     if (pendingFiles.length) {
-      // Pre-flight: verify the user still has a valid session before starting uploads.
-      // If the session expired mid-form, fail fast with a clear message instead of
-      // getting a cryptic "all photos failed" after a long wait.
-      const preSession = await window.CP?.Auth?.getSession?.();
-      if (!preSession?.access_token) {
-        CP.UI.toast('Your session has expired. Please refresh the page and log in again before submitting.', 'error');
+      // Pre-flight: get a guaranteed-fresh access token before starting uploads.
+      // getAccessToken() tries the cached session first, then does an explicit
+      // refresh if needed (covers slow-3G cases where auto-refresh timed out).
+      btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Verifying session…';
+      const accessToken = await window.CP?.Auth?.getAccessToken?.();
+      if (!accessToken) {
+        CP.UI.toast('Your session has expired. Your draft is saved — please log in again and resume it.', 'error');
         btn.disabled  = false;
         btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Listing';
+        setTimeout(() => { window.location.href = '/landlord/login.html'; }, 3000);
         return;
       }
 
@@ -988,6 +990,7 @@
           folder:           `/properties/${propId}`,
           supabaseUrl:      CONFIG.SUPABASE_URL,
           anonKey:          CONFIG.SUPABASE_ANON_KEY,
+          userToken:        accessToken,
           onFileProgress:   (fileIdx, pct) => {
             if (pct === 100) doneCount++;
             txt.textContent = `Uploading photos… (${doneCount} of ${pendingFiles.length} done)`;

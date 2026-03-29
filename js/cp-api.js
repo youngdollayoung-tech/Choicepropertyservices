@@ -30,6 +30,15 @@ function _ok(data, error) {
 const Auth = {
   async getUser()       { const { data } = await sb().auth.getUser(); return data?.user || null; },
   async getSession()    { const { data } = await sb().auth.getSession(); return data?.session || null; },
+  // Returns a guaranteed-fresh access token, or null if the user is truly not logged in.
+  // Tries getSession() first (uses cached token if still valid), then falls back to an
+  // explicit refreshSession() call in case the cached token expired mid-form.
+  async getAccessToken() {
+    const session = await sb().auth.getSession().then(r => r.data?.session).catch(() => null);
+    if (session?.access_token) return session.access_token;
+    const refreshed = await sb().auth.refreshSession().then(r => r.data?.session).catch(() => null);
+    return refreshed?.access_token ?? null;
+  },
   async signOut() {
     await sb().auth.signOut();
     // Route to the correct login page based on current URL path

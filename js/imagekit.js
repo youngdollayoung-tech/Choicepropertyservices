@@ -83,12 +83,17 @@ export async function uploadToImageKit(file, options = {}) {
     onProgress  = null,
     supabaseUrl = CONFIG.SUPABASE_URL,
     anonKey     = CONFIG.SUPABASE_ANON_KEY,
+    userToken:  preToken = null,   // Pre-fetched access token — skips getSession() call
   } = options;
 
   // Resolve the authenticated user's JWT so the Edge Function can verify
   // the caller is a real logged-in user (not just the public anon key).
-  const session   = await window.CP?.Auth?.getSession?.();
-  const userToken = session?.access_token || anonKey;
+  // If a pre-fetched token was passed in, use it directly (avoids a second getSession() round-trip).
+  let userToken = preToken;
+  if (!userToken) {
+    const session = await window.CP?.Auth?.getSession?.();
+    userToken = session?.access_token || anonKey;
+  }
 
   // Validate file type client-side
   if (!file.type.startsWith('image/')) {
