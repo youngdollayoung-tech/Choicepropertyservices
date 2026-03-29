@@ -1,3 +1,3 @@
-# _redirects — supported by Cloudflare Pages and Netlify
-# Catch-all 404 — must be last
-/*    /404.html   404
+# _redirects — Cloudflare Pages / Netlify
+# Custom 404: Cloudflare Pages automatically serves 404.html for not-found routes.
+# No redirect rule needed here — 404.html at the root is sufficient.
