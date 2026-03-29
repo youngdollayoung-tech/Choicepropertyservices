@@ -1370,6 +1370,29 @@ CREATE VIEW public_landlord_profiles WITH (security_invoker=on) AS
   FROM landlords;
 GRANT SELECT ON public_landlord_profiles TO anon, authenticated;
 
+-- Table-level grants (required alongside RLS — RLS alone does not work without these)
+GRANT SELECT                        ON properties       TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON properties      TO authenticated;
+
+GRANT SELECT                        ON landlords        TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON landlords       TO authenticated;
+
+GRANT SELECT, INSERT                ON applications     TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON applications    TO authenticated;
+
+GRANT SELECT, INSERT                ON co_applicants    TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON co_applicants   TO authenticated;
+
+GRANT SELECT, INSERT                ON inquiries        TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON inquiries       TO authenticated;
+
+GRANT SELECT, INSERT                ON messages         TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON messages        TO authenticated;
+
+GRANT SELECT                        ON email_logs       TO authenticated;
+GRANT SELECT                        ON admin_roles      TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON saved_properties TO authenticated;
+
 
 -- ============================================================
 -- 15. STORAGE BUCKETS & POLICIES
