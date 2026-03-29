@@ -1,0 +1,46 @@
+# ============================================================
+# Choice Properties — .gitignore
+# ============================================================
+
+# ------------------------------------------------------------
+# CRITICAL: config.js holds your real credentials.
+# NEVER commit the real config.js — only config.example.js
+# is tracked. Fill in config.js locally or at deploy time.
+# ------------------------------------------------------------
+config.js
+
+# Supabase local dev artifacts
+.supabase/
+supabase/.temp/
+
+# Node (if you ever run anything locally)
+node_modules/
+.env
+.env.local
+.env.production
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Replit-internal state and cache (not needed in GitHub)
+# NOTE: .agents/ is intentionally NOT ignored — .agents/instructions.md
+# must be tracked so it is present when this repo is imported into any
+# new Replit account. It is the primary agent guard against unwanted migrations.
+.local/
+.cache/
+attached_assets/
+
+# Replit configuration files (editor-specific, not needed in GitHub)
+.replit
+replit.nix
+.gitkeep
