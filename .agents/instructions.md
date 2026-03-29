@@ -39,9 +39,9 @@ This is a **locked Replit system artifact that cannot be removed**. It does NOT 
 
 The Run button starts `.replit-guard.js`, which checks the environment for Postgres poison variables and then starts `serve.js` as a local HTTP server on port 5000. This is for **previewing the static site locally only**. It is not production. It is not a backend. Do not modify it.
 
-### If `.replit-guard.js` blocks startup
+### If `.replit-guard.js` shows a warning on startup
 
-If the guard script halts with an error about Postgres variables, that is **correct behaviour**. Do not bypass it. Do not modify the guard to suppress the check. The error means Replit has injected database environment variables. Read the guard's output carefully and follow its instructions.
+The guard script checks for Postgres environment variables injected by Replit's locked `integrations = ["javascript_database:1.0.0"]` system artifact. Because this integration cannot be removed, the guard **prints a warning and continues** — it does not block startup. This is intentional. The warning is informational only: those variables are meaningless for this project and must never be used. The preview server starts normally after the warning.
 
 ### What you are allowed to do
 

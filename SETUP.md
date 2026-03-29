@@ -19,6 +19,8 @@ Save it somewhere safe. You'll paste it in two places — both must match exactl
 3. Paste the **entire contents of `SETUP.sql`** → click **Run** → wait for the success message
 4. That's it — one file, one run. No additional patch files needed.
 
+> **What `SETUP.sql` includes:** full schema, all RLS policies, all database functions, all triggers, all indexes, all storage bucket definitions, and all table-level grants for `anon` and `authenticated` roles. Everything is in one file.
+
 **Save these from Supabase → Project Settings → API:**
 - Project URL (looks like `https://xxxx.supabase.co`)
 - Anon public key (the `eyJ...` key labelled "anon public")
@@ -135,8 +137,9 @@ Only repeat this step if you edit the function code.
 
 ## Step 8 — Create Your Admin Account
 
-1. Register an account on your live site (any method)
-2. Supabase → **Authentication → Users** → find your email → copy your **User UID**
+**Option A — Via Supabase Dashboard (recommended):**
+1. Supabase → **Authentication → Users** → **Add user** → enter your admin email and a strong password → click **Create user**
+2. Copy the **User UID** shown in the users list
 3. Supabase → **SQL Editor → New query** → run:
 
 ```sql
@@ -144,7 +147,15 @@ INSERT INTO admin_roles (user_id, email)
 VALUES ('your-user-uid-here', 'your@email.com');
 ```
 
-4. Sign out and back in — you now have access to `/admin/dashboard.html`
+4. Go to `/admin/login.html` on your live site and sign in
+
+**Option B — Self-register then elevate:**
+1. Register a landlord account or any account on the live site
+2. Supabase → **Authentication → Users** → find your email → copy the **User UID**
+3. Run the same SQL INSERT above
+4. Sign out and back in at `/admin/login.html`
+
+> **Email confirmation must be OFF** for admin and landlord accounts. Supabase → Authentication → Providers → Email → toggle **"Confirm email" OFF**. If it is ON, `signUp()` will not return a session and account creation will fail.
 
 ---
 
@@ -160,6 +171,36 @@ Update all of these — missing even one breaks something:
 ---
 
 ## Troubleshooting
+
+**"Permission denied for table X" on login, registration, or any page action**
+→ The table-level grants are missing. This only happens if `SETUP.sql` was run from an older version that did not include the `GRANT` statements at the bottom of the file.
+→ Fix: In Supabase → SQL Editor, run the grant block manually:
+```sql
+GRANT SELECT ON properties TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON properties TO authenticated;
+GRANT SELECT ON landlords TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON landlords TO authenticated;
+GRANT SELECT, INSERT ON applications TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON applications TO authenticated;
+GRANT SELECT, INSERT ON co_applicants TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON co_applicants TO authenticated;
+GRANT SELECT, INSERT ON inquiries TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON inquiries TO authenticated;
+GRANT SELECT, INSERT ON messages TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON messages TO authenticated;
+GRANT SELECT ON email_logs TO authenticated;
+GRANT SELECT ON admin_roles TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON saved_properties TO authenticated;
+```
+→ The current `SETUP.sql` already includes these — this only affects setups from before 2026-03-29.
+
+**"Account setup failed" on landlord registration followed by "User already registered" on retry**
+→ The auth user was created but the landlord profile INSERT failed (usually a table grant issue — see above).
+→ Fix the grants first, then: Supabase → Authentication → Users → delete the orphaned user → have the user register again.
+
+**Admin login says "Access denied. This account does not have admin privileges."**
+→ The user logged in successfully but is not in the `admin_roles` table.
+→ Fix: Supabase → SQL Editor → `INSERT INTO admin_roles (user_id, email) VALUES ('uid', 'email');`
 
 **Emails not sending / email_logs shows `failed`**
 → Supabase → Edge Functions → click the function → Logs tab for the exact error

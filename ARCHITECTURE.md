@@ -109,7 +109,9 @@ These functions are NOT part of this repository's local runtime. They run on Den
 | `admin_roles` | Admin user registry |
 | `saved_properties` | Tenant saved listings |
 
-Row Level Security (RLS) is enabled on all tables. The complete schema, RLS policies, triggers, and indexes are all in `SETUP.sql` — one file, one run.
+Row Level Security (RLS) is enabled on all tables. The complete schema, RLS policies, triggers, indexes, and **table-level grants** are all in `SETUP.sql` — one file, one run.
+
+> **Important:** RLS policies alone are not enough. PostgreSQL requires both a table-level `GRANT` (giving the role permission to touch the table at all) AND an RLS policy (determining which rows that role can see). Without the grants, all queries return `permission denied` even when valid RLS policies exist. `SETUP.sql` includes both. If you ever see `permission denied for table X`, run the grant block in `SETUP.sql` section 14 manually in the SQL Editor.
 
 ---
 
@@ -163,7 +165,7 @@ Signed URLs (7-day expiry) are generated on-demand by the `get-application-statu
 
 | Concern | Mechanism |
 |---|---|
-| Database access | RLS policies on every table; service role key server-side only |
+| Database access | Table-level grants (`GRANT`) + RLS policies on every table; service role key server-side only |
 | Admin auth | JWT verified server-side against `admin_roles` table |
 | SSN data | Masked to last-4 on receipt; never stored full |
 | Lease signing | 192-bit random tokens per lease; verified server-side |
@@ -223,7 +225,7 @@ Browser → POST /functions/v1/process-application
 
 ## Deployment Checklist
 
-- [ ] Supabase project created, `SETUP.sql` run in SQL Editor (one file, one run)
+- [ ] Supabase project created, `SETUP.sql` run in SQL Editor (one file, one run — includes schema, RLS, functions, grants, and storage buckets)
 - [ ] Supabase Edge Function secrets set (see SETUP.md Step 4 for full list)
 - [ ] Google Apps Script deployed, URL added as `GAS_EMAIL_URL` secret
 - [ ] Supabase Auth redirect URLs configured (Site URL + landlord + admin redirect URLs)
