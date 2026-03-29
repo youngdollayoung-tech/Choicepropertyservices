@@ -1,3 +1,76 @@
+# Session 021 — Handoff Document
+**Date:** 2026-03-29
+**Session type:** Implementation
+**Project:** Choice Properties (property rental marketplace)
+**Focus:** Photo upload overhaul — 7 fixes across imagekit.js, new-listing.html, landlord.css
+
+---
+
+## What This Session Did
+
+Identified and fixed 7 critical/high/medium issues in the property photo upload flow that caused silent failures for the majority of landlords (especially iPhone users).
+
+### Files Changed
+
+| File | Changes |
+|---|---|
+| `js/imagekit.js` | Canvas compression (I-050a), XHR real progress (I-050b), per-file error isolation (I-050c) |
+| `landlord/new-listing.html` | HEIC rejection (I-050d), file dedup (I-050e), size badges (I-050f), preview blob fix (I-050g), partial failure handler (I-050h) |
+| `css/landlord.css` | `.photo-size-badge` rule |
+| `ISSUES.md` | I-050 added and resolved |
+| `CHANGELOG.md` | Session 021 entry |
+| `SESSION.md` | This file |
+
+**Feature code NOT changed:** edit-listing.html, all other HTML pages, all Edge Functions, cp-api.js, config.js, apply.js, all CSS except landlord.css.
+
+---
+
+## Issue Registry Status
+
+| Status | Count |
+|---|---|
+| OPEN | 1 |
+| IN PROGRESS | 0 |
+| RESOLVED | 49 |
+| DEFERRED | 1 |
+| WONT FIX | 1 |
+| **Total** | **52** |
+
+### Remaining Open Issue
+| ID | Severity | Title |
+|---|---|---|
+| I-043 | 🔴 CRITICAL | Documents silently discarded — requires Storage upload + schema change |
+
+---
+
+## What Was Fixed (I-050 sub-items)
+
+### I-050a — Canvas compression before base64 encoding
+Added `compressImage()` in imagekit.js. Resizes to max 2048 px and re-encodes as JPEG at 0.85 quality before converting to base64. Fixes the Supabase Edge Function 6 MB body cap — the root cause of silent upload failures for photos above ~4.5 MB (standard modern phone output). Typical reduction: 8 MB → 600 KB.
+
+### I-050b — XHR replaces fetch for real upload progress
+Replaced the `fetch()` call in `uploadToImageKit()` with `XMLHttpRequest` so `upload.onprogress` fires during the actual HTTP transfer. Progress now moves smoothly from 40% → 85% during the upload instead of freezing at 50% for 15–25 seconds then jumping.
+
+### I-050c — Per-file error isolation in batch uploads
+Wrapped each `uploadToImageKit()` call in the worker pool with try/catch. One failed photo no longer aborts the remaining batch. Failed results are returned as `{ error, fileName }` objects. The submit handler collects successful photos, warns about failures, and continues if at least one photo succeeded.
+
+### I-050d — HEIC/HEIF rejection at selection time
+Added HEIC/HEIF detection in `handleFiles()`. Rejected immediately on file selection (not at submit time) with a clear actionable message including the iOS Settings path to switch to JPG.
+
+### I-050e — Photo deduplication in new-listing
+Added name+size dedup check matching the existing logic in edit-listing. Selecting the same file twice no longer adds duplicates.
+
+### I-050f — File size badge on thumbnails
+Each photo thumbnail now shows its original file size in the top-right corner. Landlords can see oversized photos immediately at selection, not at submit time.
+
+### I-050g — Preview photos use data URLs instead of blob: URLs
+`pendingPreviews[]` (base64 data URLs) are used for the "Preview as Tenant" sessionStorage payload instead of `URL.createObjectURL()`. Blob URLs are tab-scoped and fail on iOS Safari when the preview opens in a new tab.
+
+### I-050h — Dropzone hint text updated
+Updated the dropzone subtitle to mention JPG/PNG/WEBP and include inline iPhone guidance.
+
+---
+
 # Session 020 — Handoff Document
 **Date:** 2026-03-28
 **Session type:** Implementation

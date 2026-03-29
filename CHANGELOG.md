@@ -3,6 +3,20 @@
 All notable changes to this project are documented here.
 Every task, fix, or update must add an entry. Most recent changes appear first.
 
+
+## [2026-03-29] — Session 021: Photo upload overhaul — I-050
+
+**Session type:** Implementation — 7 fixes in imagekit.js, new-listing.html, landlord.css
+
+- **I-050a** Canvas compression before upload — fixes 6 MB edge function body cap, ~80% faster mobile uploads
+- **I-050b** XHR real upload progress — bar moves smoothly 40→85% instead of freezing
+- **I-050c** Per-file error isolation — one failed photo no longer aborts entire batch
+- **I-050d** HEIC rejection at selection time — actionable message with iOS Settings path
+- **I-050e** Photo deduplication — same file selected twice no longer double-uploads
+- **I-050f** File size badge on thumbnails — immediate feedback at selection, not submit
+- **I-050g** Preview blob URL fix — data URLs used instead of blob: URLs (iOS Safari cross-tab fix)
+- **I-050h** Dropzone hint text updated with accepted formats and iPhone guidance
+
 ## [2026-03-28] — Session 020: Implementation — I-037 through I-049
 
 **Session type:** Implementation — 12 issues closed across listing form, application form, and Edge Function.

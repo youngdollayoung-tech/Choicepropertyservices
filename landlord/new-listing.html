@@ -361,7 +361,7 @@
     <div class="photo-dropzone" id="photoDropzone">
       <div class="photo-dropzone-icon"><i class="fas fa-cloud-upload-alt"></i></div>
       <h4>Drag & drop photos here</h4>
-      <p>Or click to browse — JPG, PNG, WEBP up to 10MB each</p>
+      <p>JPG, PNG, WEBP — up to 10MB each &nbsp;·&nbsp; <strong>iPhone users:</strong> Settings → Camera → Formats → Most Compatible</p>
       <input type="file" id="photoInput" multiple accept="image/*" style="opacity:0;position:absolute;width:0;height:0;pointer-events:none;">
     </div>
 
@@ -670,7 +670,7 @@
       amenities:         getChecked('amenitiesGroup'),
       description:       v('description'),
       showing_instructions: v('showingInstructions') || null,
-      photo_urls:        pendingFiles.map(f => URL.createObjectURL(f)), // I-021: temp blob URLs for preview; not persisted
+      photo_urls:        pendingPreviews.slice(0, 5), // I-050: data URLs work cross-tab (blob: URLs are tab-scoped and break on iOS Safari)
       status:            'preview',
       landlords:         { contact_name: profile.contact_name, business_name: profile.business_name, tagline: profile.tagline, avatar_url: profile.avatar_url, verified: profile.verified },
     };
@@ -711,10 +711,24 @@
     const MAX_PHOTOS = 20;
     files.forEach(file => {
       if (!file.type.startsWith('image/')) return;
+
+      // I-050: Reject HEIC/HEIF immediately — createImageBitmap() and canvas
+      // compression both fail on HEIC in most browsers, so we cannot compress
+      // or re-encode it. Reject early with a clear, actionable message.
+      if (['image/heic', 'image/heif'].includes(file.type.toLowerCase()) ||
+          /\.heic$/i.test(file.name)) {
+        err(`"${file.name}" is in HEIC format (iPhone default). Go to Settings → Camera → Formats → Most Compatible to shoot in JPG, then re-upload.`);
+        return;
+      }
+
       if (pendingFiles.length >= MAX_PHOTOS) {
         err(`Maximum ${MAX_PHOTOS} photos allowed.`);
         return;
       }
+
+      // I-050: Skip duplicate files (same name + size = same file selected twice)
+      if (pendingFiles.find(f => f.name === file.name && f.size === file.size)) return;
+
       pendingFiles.push(file);
       const reader = new FileReader();
       reader.onload = (e) => addPhotoPreview(e.target.result, file);
@@ -728,6 +742,13 @@
   // corresponding data-URL strings in the same order.
   const pendingPreviews = []; // parallel to pendingFiles — data URLs for display
 
+  // I-050: Format bytes as human-readable size for thumbnail badges
+  function fmtSize(bytes) {
+    return bytes >= 1_048_576
+      ? (bytes / 1_048_576).toFixed(1) + ' MB'
+      : Math.round(bytes / 1024) + ' KB';
+  }
+
   function renderPhotoGrid() {
     const grid = document.getElementById('photoPreviewGrid');
     grid.innerHTML = '';
@@ -737,6 +758,7 @@
       item.innerHTML = `
         <img src="${pendingPreviews[i]}" alt="Preview">
         ${i === 0 ? '<div class="new-cover-label">Cover</div>' : ''}
+        <div class="photo-size-badge">${fmtSize(file.size)}</div>
         <div class="photo-action-bar">
           ${i !== 0 ? `<button class="photo-action-btn new-cover-btn" title="Set as cover" type="button"><i class="fas fa-star"></i></button>` : ''}
           <button class="photo-action-btn new-delete-btn" title="Remove" type="button"><i class="fas fa-times"></i></button>
@@ -954,10 +976,33 @@
             pctLbl.textContent = overall + '%';
           },
         });
+
+        // I-050: Separate successes from failures — one bad photo must not
+        // discard the entire batch. Collect the good ones and warn about failures.
+        const failed = results.filter(r => r?.error);
         for (const r of results) {
-          photoUrls.push(r.url);
-          photoFileIds.push(r.fileId ?? null);
+          if (r?.url) {
+            photoUrls.push(r.url);
+            photoFileIds.push(r.fileId ?? null);
+          }
         }
+
+        if (failed.length > 0 && photoUrls.length === 0) {
+          // Every photo failed — nothing to submit
+          const names = failed.map(f => `"${f.fileName}"`).join(', ');
+          CP.UI.toast(`All photos failed to upload: ${names}. Please try again.`, 'error');
+          btn.disabled  = false;
+          btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Listing';
+          document.getElementById('uploadProgress').style.display = 'none';
+          return;
+        }
+
+        if (failed.length > 0) {
+          // Some photos failed but others succeeded — warn and continue
+          const names = failed.map(f => `"${f.fileName}"`).join(', ');
+          CP.UI.toast(`${failed.length} photo(s) could not be uploaded and were skipped: ${names}. You can add them later from Edit Listing.`, 'info');
+        }
+
       } catch (uploadErr) {
         CP.UI.toast('Photo upload failed: ' + uploadErr.message, 'error');
         btn.disabled  = false;

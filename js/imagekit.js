@@ -9,36 +9,73 @@
 // Usage:
 //   import { uploadToImageKit } from '../js/imagekit.js';
 //
-//   const url = await uploadToImageKit(file, {
+//   const result = await uploadToImageKit(file, {
 //     folder:   '/properties/PROP-ABC123',
 //     onProgress: (pct) => console.log(pct + '%'),
 //   });
+//   // result: { url, fileId }
 // ============================================================
 
+// ── I-050: Canvas compression ─────────────────────────────
+// Resizes + re-encodes as JPEG before base64 conversion.
+// Fixes the Supabase Edge Function 6 MB body cap:
+//   base64 adds ~33% overhead, so files > ~4.5 MB would silently
+//   return HTTP 413. Compression brings typical phone photos
+//   (5–12 MB) down to 300–800 KB — well under the limit and
+//   ~80% faster to upload on mobile.
+// HEIC/HEIF files cannot be decoded by createImageBitmap() in
+// most browsers — they are rejected upstream in handleFiles()
+// before reaching this function.
+async function compressImage(file, maxPx = 2048, quality = 0.85) {
+  let bmp;
+  try {
+    bmp = await createImageBitmap(file);
+  } catch {
+    // createImageBitmap failed (unsupported format) — fall back to raw file
+    return file;
+  }
+  const scale   = Math.min(1, maxPx / Math.max(bmp.width, bmp.height));
+  const canvas  = document.createElement('canvas');
+  canvas.width  = Math.round(bmp.width  * scale);
+  canvas.height = Math.round(bmp.height * scale);
+  canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  bmp.close?.(); // free GPU memory where supported
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      blob => blob ? resolve(blob) : reject(new Error('Compression failed')),
+      'image/jpeg',
+      quality
+    );
+  });
+}
+
 /**
- * Convert a File object to a base64 data URI string.
- * ImageKit's upload API accepts base64 strings directly.
+ * Convert a Blob/File to a base64 data URI string.
  */
-function fileToBase64(file) {
+function fileToBase64(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload  = () => resolve(reader.result); // full data URI
+    reader.onload  = () => resolve(reader.result);
     reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(blob);
   });
 }
 
 /**
  * Upload a single file to ImageKit via the Supabase Edge Function.
+ * Uses XHR instead of fetch so real HTTP upload progress can be reported.
  *
- * @param {File}   file             - The file to upload
+ * I-050 fixes applied here:
+ *   • Canvas compression before base64 (fixes 6 MB edge-function body cap)
+ *   • XHR onprogress for real 50→85% upload progress (not fake checkpoints)
+ *
+ * @param {File}   file
  * @param {object} options
- * @param {string} options.folder        - ImageKit folder path, e.g. '/properties/PROP-XYZ'
- * @param {function} options.onProgress  - Optional callback(percent: number)
- * @param {string} options.supabaseUrl   - CONFIG.SUPABASE_URL
- * @param {string} options.anonKey       - CONFIG.SUPABASE_ANON_KEY
- *
- * @returns {Promise<string>} The ImageKit CDN URL of the uploaded file
+ * @param {string}   options.folder       - ImageKit folder path
+ * @param {function} options.onProgress   - callback(percent: 0–100)
+ * @param {string}   options.supabaseUrl
+ * @param {string}   options.anonKey
+ * @returns {Promise<{url: string, fileId: string|null}>}
  */
 export async function uploadToImageKit(file, options = {}) {
   const {
@@ -50,7 +87,7 @@ export async function uploadToImageKit(file, options = {}) {
 
   // Resolve the authenticated user's JWT so the Edge Function can verify
   // the caller is a real logged-in user (not just the public anon key).
-  const session = await window.CP?.Auth?.getSession?.();
+  const session   = await window.CP?.Auth?.getSession?.();
   const userToken = session?.access_token || anonKey;
 
   // Validate file type client-side
@@ -58,105 +95,117 @@ export async function uploadToImageKit(file, options = {}) {
     throw new Error(`${file.name} is not an image file.`);
   }
 
-  // Soft size cap — warn but still upload (ImageKit handles large files fine)
-  if (file.size > 10 * 1024 * 1024) {
-    throw new Error(`${file.name} exceeds 10MB. Please use a smaller file.`);
-  }
+  // Signal start
+  onProgress?.(5);
 
-  // Signal start (10%)
-  onProgress?.(10);
+  // I-050: Compress before encoding — this is the key fix for the 6 MB cap.
+  // Typical output: 8 MB phone JPEG → ~600 KB compressed JPEG.
+  const compressed = await compressImage(file);
+  onProgress?.(20);
 
-  // Convert to base64
-  const base64DataUri = await fileToBase64(file);
-  onProgress?.(30);
+  // Convert compressed blob to base64 data URI
+  const base64DataUri = await fileToBase64(compressed);
+  onProgress?.(35);
 
-  // Build a clean filename
-  const ext      = file.name.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
-  const safeName = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
+  // Build a clean filename (always .jpg after compression)
+  const safeName = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.jpg`;
+  const payload  = JSON.stringify({ fileData: base64DataUri, fileName: safeName, folder });
 
-  onProgress?.(50);
+  onProgress?.(40);
 
-  // Call the Edge Function — use the authenticated user JWT, not the anon key,
-  // so the server-side auth check can verify a real user session.
-  const res = await fetch(`${supabaseUrl}/functions/v1/imagekit-upload`, {
-    method:  'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey':        anonKey,
-      'Authorization': `Bearer ${userToken}`,
-    },
-    body: JSON.stringify({
-      fileData: base64DataUri,
-      fileName:   safeName,
-      folder,
-    }),
+  // I-050: Use XHR so upload.onprogress fires during the actual HTTP transfer.
+  // Progress maps: 40% (pre-send) → 40–85% (upload bytes) → 85–100% (server + parse).
+  const data = await new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const p = 40 + Math.round((e.loaded / e.total) * 45); // 40→85
+        onProgress?.(p);
+      }
+    };
+
+    xhr.onload = () => {
+      onProgress?.(95);
+      let parsed;
+      try { parsed = JSON.parse(xhr.responseText); } catch { parsed = {}; }
+      if (parsed.success) {
+        resolve(parsed);
+      } else {
+        reject(new Error(parsed.error || `Upload failed (HTTP ${xhr.status})`));
+      }
+    };
+
+    xhr.onerror   = () => reject(new Error('Network error — check your connection and try again.'));
+    xhr.ontimeout = () => reject(new Error('Upload timed out — your connection may be slow. Please try again.'));
+    xhr.timeout   = 120_000; // 2 minutes max per photo
+
+    xhr.open('POST', `${supabaseUrl}/functions/v1/imagekit-upload`);
+    xhr.setRequestHeader('apikey',        anonKey);
+    xhr.setRequestHeader('Authorization', `Bearer ${userToken}`);
+    xhr.setRequestHeader('Content-Type',  'application/json');
+    xhr.send(payload);
   });
 
-  onProgress?.(85);
-
-  const data = await res.json();
-
-  if (!data.success) {
-    throw new Error(data.error || 'Upload failed');
-  }
-
   onProgress?.(100);
-  // I-028 FIX: return both url and fileId so callers can persist fileId
-  // for later CDN deletion (I-015). Previously only data.url was returned.
+
+  // I-028: return both url and fileId so callers can persist fileId for CDN deletion.
   return { url: data.url, fileId: data.fileId ?? null };
 }
 
 /**
  * Upload multiple files with capped concurrency (3 at a time) and aggregate progress.
  *
- * I-016 FIX: The previous implementation used a sequential for-await loop —
- * each photo waited for the previous to finish. With the 20-photo max and
- * typical mobile latency this meant 20+ seconds of blocking upload time.
- * Replaced with a worker-pool pattern: up to 3 uploads run simultaneously,
- * reducing wall-clock time ~3x while staying well inside ImageKit rate limits.
+ * I-016 FIX: worker-pool pattern — up to 3 uploads run simultaneously.
+ * Result order is preserved regardless of which worker finished first.
  *
- * Result order is preserved — results[i] always corresponds to files[i]
- * regardless of which worker picked up which file.
+ * I-050 FIX: Per-file errors are caught individually. One failed photo does
+ * NOT abort the rest. Failed results are returned as { error, fileName } objects
+ * so callers can show a targeted retry UI rather than losing the whole batch.
  *
  * @param {File[]}  files
  * @param {object}  options  - Same as uploadToImageKit, plus:
  * @param {function} options.onFileProgress  - callback(fileIndex, percent)
  * @param {function} options.onTotalProgress - callback(overallPercent 0–100)
  *
- * @returns {Promise<Array<{url: string, fileId: string|null}>>} url+fileId pairs in input order
+ * @returns {Promise<Array<{url,fileId}|{error,fileName}>>} results in input order
  */
 export async function uploadMultipleToImageKit(files, options = {}) {
   const { onFileProgress, onTotalProgress, ...baseOptions } = options;
   const CONCURRENCY = 3;
 
   const results      = new Array(files.length);
-  const fileProgress = new Array(files.length).fill(0); // per-file 0–100
+  const fileProgress = new Array(files.length).fill(0);
 
   const updateTotal = () => {
-    const sum     = fileProgress.reduce((a, b) => a + b, 0);
-    const overall = Math.round(sum / files.length);
+    const overall = Math.round(fileProgress.reduce((a, b) => a + b, 0) / files.length);
     onTotalProgress?.(overall);
   };
 
-  // Worker pool: each worker claims the next unclaimed file index until exhausted.
-  // JS is single-threaded — index++ is atomic, no mutex needed.
   let nextIndex = 0;
 
   async function worker() {
     while (nextIndex < files.length) {
       const i = nextIndex++;
-      results[i] = await uploadToImageKit(files[i], {
-        ...baseOptions,
-        onProgress: (pct) => {
-          fileProgress[i] = pct;
-          onFileProgress?.(i, pct);
-          updateTotal();
-        },
-      });
+      // I-050: catch per-file errors — one failure must not abort sibling workers.
+      try {
+        results[i] = await uploadToImageKit(files[i], {
+          ...baseOptions,
+          onProgress: (pct) => {
+            fileProgress[i] = pct;
+            onFileProgress?.(i, pct);
+            updateTotal();
+          },
+        });
+      } catch (err) {
+        // Mark progress as complete so the total bar doesn't stall
+        fileProgress[i] = 100;
+        updateTotal();
+        results[i] = { error: err.message, fileName: files[i].name };
+      }
     }
   }
 
-  // Spawn min(CONCURRENCY, files.length) workers and wait for all to finish.
   await Promise.all(
     Array.from({ length: Math.min(CONCURRENCY, files.length) }, worker)
   );

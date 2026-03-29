@@ -13,10 +13,12 @@
 |---|---|
 | OPEN | 1 |
 | IN PROGRESS | 0 |
-| RESOLVED | 48 |
+| RESOLVED | 49 |
 | DEFERRED | 1 |
 | WONT FIX | 1 |
-| **Total** | **51** |
+| **Total** | **52** |
+
+*Last updated: Session 021 — 2026-03-29 (I-050 added and resolved: photo upload overhaul)*
 
 *Last updated: Session 020 — 2026-03-28 (Implementation: I-037 through I-049 closed; I-043 remains deferred to 021)*
 
@@ -719,3 +721,22 @@
 - **Fix plan:** Add a `<span class="required-star">*</span>` (or equivalent CSS class used elsewhere in the form) to the "Preferred Contact Method" label in `apply.html`. Change the hint text from "You can select both methods" to "Select at least one (you can select both)". No JS changes required.
 - **Planned session:** 020
 
+
+---
+
+## Session 021 — Resolved
+
+| I-050 | 🔴 CRITICAL (composite) | Photo upload overhaul — 7 sub-issues fixed | new-listing, imagekit.js | ✅ RESOLVED |
+
+### Sub-issues
+
+| ID | Sev | Title | Status |
+|---|---|---|---|
+| I-050a | 🔴 | Canvas compression — fixes 6 MB Supabase body cap causing silent failures on phone photos > 4.5 MB | ✅ RESOLVED |
+| I-050b | 🟠 | XHR real upload progress — bar no longer freezes at 50% for 25 seconds | ✅ RESOLVED |
+| I-050c | 🔴 | Per-file error isolation — one bad photo no longer aborts entire batch | ✅ RESOLVED |
+| I-050d | 🔴 | HEIC rejection at selection time — iPhone default format rejected with actionable guidance | ✅ RESOLVED |
+| I-050e | 🟠 | Photo deduplication in new-listing — same file selected twice no longer double-uploads | ✅ RESOLVED |
+| I-050f | 🟡 | File size badge on thumbnails — immediate feedback at selection not submit | ✅ RESOLVED |
+| I-050g | 🟠 | Preview blob URL fix — data URLs used instead of blob: URLs (iOS Safari cross-tab) | ✅ RESOLVED |
+| I-050h | 🟡 | Dropzone hint text — formats listed, iPhone HEIC guidance added inline | ✅ RESOLVED |
