@@ -515,6 +515,7 @@
   const photoInput = document.getElementById('photoInput');
 
   dropzone.addEventListener('click', () => photoInput.click());
+  photoInput.addEventListener('click', e => e.stopPropagation());
   photoInput.addEventListener('change', e => handleNewFiles([...e.target.files]));
   dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
   dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
