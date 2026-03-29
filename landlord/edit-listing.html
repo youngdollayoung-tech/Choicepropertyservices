@@ -8,6 +8,8 @@
   <link rel="preconnect" href="https://cdnjs.cloudflare.com">
   <link rel="preconnect" id="sb-preconnect"><!-- set by config.js -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Edit your rental property listing on Choice Properties.">
+  <meta name="robots" content="noindex, nofollow">
   <title>Edit Listing — Choice Properties</title>
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -147,7 +149,7 @@
 
 
 <!-- Delete confirmation modal -->
-<div id="deleteModal" style="display:none;position:fixed;inset:0;background:rgba(15,31,61,0.6);z-index:999;display:none;align-items:center;justify-content:center;padding:var(--s-6)">
+<div id="deleteModal" style="display:none;position:fixed;inset:0;background:rgba(15,31,61,0.6);z-index:999;align-items:center;justify-content:center;padding:var(--s-6)">
   <div style="background:var(--white);border-radius:var(--r-lg);padding:var(--s-8);max-width:440px;width:100%;box-shadow:var(--sh-xl)">
     <div style="font-size:32px;margin-bottom:var(--s-4);text-align:center">⚠️</div>
     <h3 style="font-family:var(--font-display);font-size:22px;color:#0e0e0f;text-align:center;margin-bottom:var(--s-3)">Delete This Listing?</h3>
@@ -175,6 +177,8 @@
   if (_isAdmin) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { window.location.href = '/admin/login.html'; throw new Error(); }
+    const { data: adminRole } = await supabase.from('admin_roles').select('id').eq('user_id', user.id).maybeSingle();
+    if (!adminRole) { window.location.href = '/admin/login.html'; throw new Error(); }
   } else {
     await requireAuth('/landlord/login.html');
   }
@@ -492,6 +496,10 @@
 
   renderExistingPhotos();
 
+  // Set available-date minimum to today (no past dates on edit either)
+  const _availEl = document.getElementById('availDate');
+  if (_availEl) _availEl.min = new Date().toISOString().split('T')[0];
+
   // Set cover (move to front)
   window.setCover = (idx) => {
     const url    = currentPhotoUrls.splice(idx, 1)[0];
@@ -528,6 +536,10 @@
   function handleNewFiles(files) {
     files.forEach(file => {
       if (!file.type.startsWith('image/')) return;
+      if (file.size > 10 * 1024 * 1024) {
+        CP.UI.toast(`"${file.name}" is too large (${(file.size / 1048576).toFixed(1)} MB). Max 10 MB per photo.`, 'error');
+        return;
+      }
       if (pendingNewFiles.find(f => f.name === file.name && f.size === file.size)) return; // dedupe
       pendingNewFiles.push(file);
       const reader = new FileReader();
@@ -550,6 +562,14 @@
     grid.appendChild(item);
   }
 
+  // ── Unsaved-changes guard ────────────────────────────
+  let _editDirty = false;
+  document.getElementById('formCard').addEventListener('input',  () => { _editDirty = true; });
+  document.getElementById('formCard').addEventListener('change', () => { _editDirty = true; });
+  window.addEventListener('beforeunload', (e) => {
+    if (_editDirty) { e.preventDefault(); e.returnValue = ''; }
+  });
+
   // ── Save listing ─────────────────────────────────────
   document.getElementById('saveBtn').addEventListener('click', saveListing);
 
@@ -570,7 +590,7 @@
     if (!v('rent') || parseInt(v('rent')) < 1)    return CP.UI.toast('Please enter a valid monthly rent.', 'error');
     if (parseInt(v('rent')) > 50000)              return CP.UI.toast('Monthly rent looks too high — please double-check.', 'error');
     const totalPhotos = currentPhotoUrls.length + pendingNewFiles.length;
-    if (totalPhotos < 1)                      return CP.UI.toast('Please include at least 1 photo.', 'error');
+    if (totalPhotos < 3)                      return CP.UI.toast('Please include at least 3 photos for a complete listing.', 'error');
     if (!v('description') || v('description').length < 50) return CP.UI.toast('Please write a description of at least 50 characters.', 'error');
 
     btn.disabled = true;
@@ -582,7 +602,7 @@
     const addressChanged = v('address') !== prop.address || v('city') !== prop.city || v('zip') !== prop.zip;
     if (addressChanged || (!lat && !lng)) {
       try {
-        const fullAddr = `${v('address')}, ${v('city')}, ${v('state') || 'MI'} ${v('zip')}`.trim();
+        const fullAddr = `${v('address')}, ${v('city')}, ${v('state')} ${v('zip')}`.trim();
         const geoRes = await fetch(
           `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullAddr)}&limit=1&countrycodes=us`,
           { headers: { 'User-Agent': 'ChoiceProperties/1.0' } }
@@ -643,7 +663,7 @@
         property_type       : v('propertyType'),
         address             : v('address'),
         city                : v('city'),
-        state               : v('state') || 'MI',
+        state               : v('state') || null,
         zip                 : v('zip') || null,
         lat                 : lat,
         lng                 : lng,
@@ -687,7 +707,8 @@
     document.getElementById('newPhotosGrid').innerHTML = '';
     renderExistingPhotos();
 
-    CP.UI.toast('Listing updated successfully!', 'success');
+    _editDirty = false;
+    CP.UI.toast('Listing updated successfully! <a href="/property.html?id=' + propertyId + '" target="_blank" style="color:inherit;text-decoration:underline">View listing →</a>', 'success');
     btn.innerHTML = '<i class="fas fa-check"></i> Saved!';
     setTimeout(() => { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save Changes'; }, 2500);
 
@@ -775,10 +796,7 @@
   // Close modal on backdrop click
   document.getElementById('deleteModal').addEventListener('click', e => {
     if (e.target === document.getElementById('deleteModal')) closeDeleteModal();
-  });"></i>${msg}`;
-    c.appendChild(t);
-    setTimeout(() => { t.style.opacity='0'; t.style.transform='translateY(6px) scale(0.97)'; t.style.transition='all 280ms'; setTimeout(()=>t.remove(),280); }, type==='error'?5000:3200);
-  }
+  });
 </script>
 
 

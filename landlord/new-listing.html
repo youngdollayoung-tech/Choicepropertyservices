@@ -9,6 +9,8 @@
   <link rel="preconnect" href="https://cdnjs.cloudflare.com">
   <link rel="preconnect" id="sb-preconnect"><!-- set by config.js -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Add a new rental property listing on Choice Properties.">
+  <meta name="robots" content="noindex, nofollow">
   <title>Add New Listing — Choice Properties</title>
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -486,7 +488,7 @@
   let _geocodeDebounce = null;
   function _scheduleGeocode() { clearTimeout(_geocodeDebounce); _geocodeDebounce = setTimeout(geocodeAddress, 800); }
   ['address', 'city', 'zip'].forEach(id => { document.getElementById(id).addEventListener('input', _scheduleGeocode); });
-  document.getElementById('state').addEventListener('change', geocodeAddress);
+  document.getElementById('state').addEventListener('change', _scheduleGeocode);
 
   // ── App fee — landlord sets their own amount ───────────
   const appFeeInput = document.getElementById('appFee');
@@ -581,7 +583,10 @@
     if (Array.isArray(s1.amenities) && s1.amenities.length) {
       document.querySelectorAll('#amenitiesGroup input').forEach(cb => { cb.checked = s1.amenities.includes(cb.value); });
     }
-    if (s1.description)          document.getElementById('description').value = s1.description;
+    if (s1.description) {
+      document.getElementById('description').value = s1.description;
+      document.getElementById('descCount').textContent = s1.description.length;
+    }
     if (s1.showingInstructions)  document.getElementById('showingInstructions').value = s1.showingInstructions;
   }
 
@@ -718,6 +723,11 @@
       if (['image/heic', 'image/heif'].includes(file.type.toLowerCase()) ||
           /\.heic$/i.test(file.name)) {
         err(`"${file.name}" is in HEIC format (iPhone default). Go to Settings → Camera → Formats → Most Compatible to shoot in JPG, then re-upload.`);
+        return;
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        err(`"${file.name}" is too large (${fmtSize(file.size)}). Maximum photo size is 10 MB.`);
         return;
       }
 
@@ -1121,9 +1131,6 @@
     let redirectTimer = setTimeout(() => { window.location.href = '/landlord/dashboard.html'; }, 8000);
     document.getElementById('successDashBtn')?.addEventListener('click', () => clearTimeout(redirectTimer));
     document.getElementById('successNewBtn')?.addEventListener('click', () => clearTimeout(redirectTimer));
-  }"></i>${msg}`;
-    c.appendChild(t);
-    setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity 300ms'; setTimeout(() => t.remove(), 300); }, 4000);
   }
 </script>
 
