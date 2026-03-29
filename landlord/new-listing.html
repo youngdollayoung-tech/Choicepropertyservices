@@ -971,10 +971,10 @@
       btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Verifying session…';
       const accessToken = await window.CP?.Auth?.getAccessToken?.();
       if (!accessToken) {
-        CP.UI.toast('Your session has expired. Your draft is saved — please log in again and resume it.', 'error');
+        CP.UI.toast('Session invalid — your draft is saved. Taking you to login now…', 'error');
         btn.disabled  = false;
         btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Listing';
-        setTimeout(() => { window.location.href = '/landlord/login.html'; }, 3000);
+        setTimeout(() => { window.location.href = '/landlord/login.html'; }, 1500);
         return;
       }
 

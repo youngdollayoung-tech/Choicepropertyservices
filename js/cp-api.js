@@ -30,14 +30,48 @@ function _ok(data, error) {
 const Auth = {
   async getUser()       { const { data } = await sb().auth.getUser(); return data?.user || null; },
   async getSession()    { const { data } = await sb().auth.getSession(); return data?.session || null; },
-  // Returns a guaranteed-fresh access token, or null if the user is truly not logged in.
-  // Tries getSession() first (uses cached token if still valid), then falls back to an
-  // explicit refreshSession() call in case the cached token expired mid-form.
+  // Returns a server-verified access token, or null if the session is invalid.
+  // Strategy:
+  //   1. Force-refresh the token via refreshSession() to bypass any stale cached token.
+  //   2. Confirm the token actually works by calling getUser() (same check the edge function runs).
+  //   3. If either step fails, sign out locally to clear the broken session, then return null.
+  //      The caller should then redirect to the login page.
   async getAccessToken() {
-    const session = await sb().auth.getSession().then(r => r.data?.session).catch(() => null);
-    if (session?.access_token) return session.access_token;
-    const refreshed = await sb().auth.refreshSession().then(r => r.data?.session).catch(() => null);
-    return refreshed?.access_token ?? null;
+    // Always force-refresh to avoid returning an expired cached access_token.
+    // getSession() can return a stale token on slow connections when auto-refresh timed out.
+    let token = null;
+    try {
+      const { data: rd } = await sb().auth.refreshSession();
+      token = rd?.session?.access_token ?? null;
+    } catch { /* network failure — fall through */ }
+
+    // Fall back to cached session if refresh failed (e.g. no network at all)
+    if (!token) {
+      try {
+        const { data: sd } = await sb().auth.getSession();
+        token = sd?.session?.access_token ?? null;
+      } catch { /* ignore */ }
+    }
+
+    if (!token) {
+      await sb().auth.signOut().catch(() => {}); // clear any stale local state
+      return null;
+    }
+
+    // Server-side verify: confirm the edge function will accept this token.
+    // This is the same check requireAuth() runs inside the edge function.
+    try {
+      const { data: ud, error: ue } = await sb().auth.getUser(token);
+      if (ue || !ud?.user) {
+        await sb().auth.signOut().catch(() => {}); // purge broken session
+        return null;
+      }
+    } catch {
+      // Network too slow to verify — trust the refreshed token and let the upload try.
+      // If it fails, the improved error handler will catch it.
+    }
+
+    return token;
   },
   async signOut() {
     await sb().auth.signOut();
