@@ -632,8 +632,8 @@ async function updateNav() {
     if (authLink)   { authLink.href   = '/landlord/dashboard.html'; authLink.textContent   = 'My Dashboard'; }
     if (drawerLink) { drawerLink.href = '/landlord/dashboard.html'; drawerLink.textContent = 'My Dashboard'; }
   } else {
-    if (authLink)   { authLink.href   = '/landlord/login.html'; authLink.textContent   = 'List Your Property'; }
-    if (drawerLink) { drawerLink.href = '/landlord/login.html'; drawerLink.textContent = 'Landlord Login'; }
+    if (authLink)   { authLink.href   = '/landlord/register.html'; authLink.textContent   = 'List Your Property'; }
+    if (drawerLink) { drawerLink.href = '/landlord/login.html';    drawerLink.textContent = 'Landlord Login'; }
   }
 }
 

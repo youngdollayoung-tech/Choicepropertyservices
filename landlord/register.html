@@ -98,6 +98,8 @@
         <span id="errorMsg"></span>
       </div>
 
+      <form id="registerForm" onsubmit="event.preventDefault(); document.getElementById('registerBtn').click()">
+
       <!-- Account Type -->
       <div class="form-group">
         <label class="form-label">Account Type *</label>
@@ -222,6 +224,8 @@
         <i class="fas fa-user-plus"></i> Create Account
       </button>
 
+      </form>
+
       <p style="margin-top:var(--s-5);font-size:13px;color:#8892a2;text-align:center;line-height:1.6">
         After registration you can log in immediately and submit your first listing.
       </p>
@@ -332,27 +336,29 @@
     btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Creating account…';
 
     try {
-      // Upload avatar first if provided
-      let avatarUrl = null;
-      if (avatarFile.files[0] && supabase) {
-        const file = avatarFile.files[0];
-        const ext  = file.name.split('.').pop();
-        const path = `avatars/${Date.now()}.${ext}`;
-        const { data: uploadData, error: uploadErr } = await supabase.storage
-          .from('profile-photos').upload(path, file, { cacheControl:'3600', upsert:false });
-        if (!uploadErr && uploadData) {
-          const { data: urlData } = supabase.storage.from('profile-photos').getPublicUrl(path);
-          avatarUrl = urlData?.publicUrl || null;
-        }
-      }
-
       const result = await signUp(email, password, {
         contact_name  : `${firstName} ${lastName}`,
         business_name : businessName || null,
         phone,
         account_type  : accountType,
-        avatar_url    : avatarUrl
+        avatar_url    : null
       });
+
+      // Upload avatar AFTER account is created — prevents orphaned files if signUp fails
+      if (avatarFile.files[0] && supabase && result?.user) {
+        const file = avatarFile.files[0];
+        const ext  = file.name.split('.').pop();
+        const path = `avatars/${result.user.id}.${ext}`;
+        const { data: uploadData, error: uploadErr } = await supabase.storage
+          .from('profile-photos').upload(path, file, { cacheControl:'3600', upsert:false });
+        if (!uploadErr && uploadData) {
+          const { data: urlData } = supabase.storage.from('profile-photos').getPublicUrl(path);
+          const avatarUrl = urlData?.publicUrl || null;
+          if (avatarUrl) {
+            await supabase.from('landlords').update({ avatar_url: avatarUrl }).eq('user_id', result.user.id);
+          }
+        }
+      }
 
       // Check if Supabase returned an active session (email confirmation disabled)
       // or if it needs email confirmation first
