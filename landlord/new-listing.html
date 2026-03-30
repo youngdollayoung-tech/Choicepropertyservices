@@ -965,6 +965,16 @@
     const photoFileIds = []; // I-028: parallel fileId array for CDN deletion (I-015)
 
     if (pendingFiles.length) {
+      // Pre-flight: confirm photo service is configured before attempting upload.
+      // If Supabase secrets are missing the request will fail with HTTP 401 which
+      // was previously (incorrectly) reported as "session expired".
+      if (!CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_ANON_KEY) {
+        CP.UI.toast('Photo uploads are not configured yet. Add your SUPABASE_URL and SUPABASE_ANON_KEY secrets and restart the app.', 'error');
+        btn.disabled  = false;
+        btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Listing';
+        return;
+      }
+
       // Pre-flight: get a guaranteed-fresh access token before starting uploads.
       // getAccessToken() tries the cached session first, then does an explicit
       // refresh if needed (covers slow-3G cases where auto-refresh timed out).
@@ -1014,10 +1024,17 @@
         if (failed.length > 0 && photoUrls.length === 0) {
           // Every photo failed — surface the actual reason from the first failure
           const firstError = failed[0]?.error || 'Unknown error';
-          const isAuthError = /unauthorized|401|session|auth/i.test(firstError);
+          // Distinguish configuration errors (bad/missing API key → HTTP 401) from
+          // genuine session expiry (the JWT itself was rejected by the edge function)
+          // and ImageKit-side failures. Previously all auth-like strings were bucketed
+          // into "session expired", which was misleading for config problems.
+          const isConfigError   = /\b401\b/.test(firstError) || /not configured/i.test(firstError);
+          const isSessionError  = /unauthorized|session expired|jwt/i.test(firstError);
           const isImageKitError = /imagekit|502|credentials/i.test(firstError);
           let reason;
-          if (isAuthError) {
+          if (isConfigError) {
+            reason = 'The photo upload service is not fully configured. Check that your Supabase secrets are set and the imagekit-upload Edge Function is deployed.';
+          } else if (isSessionError) {
             reason = 'Your session expired — please refresh the page, log back in, and try again.';
           } else if (isImageKitError) {
             reason = 'Photo storage service error — please try again in a moment.';
