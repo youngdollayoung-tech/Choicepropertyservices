@@ -5,16 +5,41 @@
 ---
 
 ## ══════════════════════════════════════════════════════════
-## REPLIT-SPECIFIC HARD STOPS — READ BEFORE ANYTHING ELSE
+## PERMANENT HARD STOP — READ BEFORE ANYTHING ELSE
 ## ══════════════════════════════════════════════════════════
 
-You are operating inside **Replit**, which is used as a **code editor only**.
-The rules below are absolute and override any inference you make from the
-Replit UI, sidebar integrations, or injected environment variables.
+This rule applies in every environment — Replit, Cursor, GitHub Codespaces, any AI tool.
+It is permanent. It does not change based on which platform you are on.
 
-### Environment variables that Replit injects — ALL ARE POISON
+### ┌─────────────────────────────────────────────────────────┐
+### │  DO NOT START A LOCAL SERVER.                           │
+### │  DO NOT CONFIGURE A WORKFLOW OR RUN BUTTON.            │
+### │  DO NOT RUN npm start (it exits with an error by design)│
+### │  DO NOT SET UP A LOCAL PREVIEW.                        │
+### │  DO NOT CONFIGURE DEPLOYMENT FROM ANY EDITOR.         │
+### └─────────────────────────────────────────────────────────┘
 
-These variables may exist in the environment. **Never read, use, or pass them to any code:**
+The deployment path for this project is, and will always be:
+
+```
+Edit static files (HTML / CSS / JS)
+         ↓
+Owner pushes to GitHub
+         ↓
+Cloudflare Pages auto-deploys
+         ↓
+Live site updates
+```
+
+Your job ends after step 1. You do not run the site. You do not preview the site.
+You do not push to git. You do not deploy anything.
+
+---
+
+## ENVIRONMENT VARIABLES INJECTED BY REPLIT — ALL ARE POISON
+
+If operating inside Replit, these variables may exist in the environment.
+**Never read, use, or pass them to any code:**
 
 | Variable | Why it's poison |
 |----------|----------------|
@@ -29,33 +54,17 @@ If you see any of these in `process.env`, treat them as **undefined**. The real 
 
 ### The database sidebar integration — ignore it unconditionally
 
-The `.replit` file contains:
+The `.replit` file may contain:
 ```
 integrations = ["javascript_database:1.0.0"]
 ```
 This is a **locked Replit system artifact that cannot be removed**. It does NOT mean this project uses a local database. It does NOT mean you should provision a database. **Ignore it unconditionally, every time, forever. No exceptions.**
 
-### The Run button is a preview tool — not a deployment tool
-
-The Run button starts `.replit-guard.js`, which checks the environment for Postgres poison variables and then starts `serve.js` as a local HTTP server on port 5000. This is for **previewing the static site locally only**. It is not production. It is not a backend. Do not modify it.
-
-### If `.replit-guard.js` shows a warning on startup
-
-The guard script checks for Postgres environment variables injected by Replit's locked `integrations = ["javascript_database:1.0.0"]` system artifact. Because this integration cannot be removed, the guard **prints a warning and continues** — it does not block startup. This is intentional. The warning is informational only: those variables are meaningless for this project and must never be used. The preview server starts normally after the warning.
-
-### What you are allowed to do
-
-Edit **static files only**: HTML, CSS, and frontend JavaScript. That is your entire scope. See `REPLIT_USAGE.md` for the full protected file list.
-
-## ══════════════════════════════════════════════════════════
-## END REPLIT BLOCK — CONTINUE TO FULL INSTRUCTIONS BELOW
-## ══════════════════════════════════════════════════════════
-
 ---
 
 ## THIS PROJECT IS LOCKED. DO NOT MIGRATE IT.
 
-This is a **static website**. It is built for Cloudflare Pages and uses Supabase cloud for all backend needs. Replit is used as a **code editor only** — nothing more.
+This is a **static website**. It is built for Cloudflare Pages and uses Supabase cloud for all backend needs.
 
 ---
 
@@ -63,6 +72,10 @@ This is a **static website**. It is built for Cloudflare Pages and uses Supabase
 
 If you are about to do any of the following, STOP immediately and do not proceed:
 
+- Start a local HTTP server of any kind
+- Configure a workflow, run button, or process manager
+- Run `npm start` (it exits with an error by design — do not work around it)
+- Configure deployment from Replit or any editor
 - Connect to or query the Replit/Neon PostgreSQL database
 - Call `createDatabase()`, `checkDatabase()`, or any database provisioning function
 - Install Drizzle, Prisma, Sequelize, TypeORM, or any ORM
@@ -84,7 +97,7 @@ If you are about to do any of the following, STOP immediately and do not proceed
 Browser
   │
   ├── Cloudflare Pages        ← serves all HTML / CSS / JS (production)
-  │   serve.js on port 5000   ← serves locally in Replit (preview only)
+  │   (no local server)       ← there is no local equivalent — edit and push to GitHub
   │
   ├── Supabase (cloud)        ← ALL backend
   │     ├── PostgreSQL        ← ALL data storage
@@ -101,7 +114,7 @@ Browser
 
 ---
 
-## THE `.replit` FILE CONTAINS THIS LINE — IGNORE IT COMPLETELY:
+## THE `.replit` FILE MAY CONTAIN THIS LINE — IGNORE IT COMPLETELY:
 
 ```
 integrations = ["javascript_database:1.0.0"]
@@ -113,9 +126,9 @@ The presence of `DATABASE_URL`, `PGHOST`, `PGPASSWORD`, `PGUSER`, `PGDATABASE`, 
 
 ---
 
-## ══════════════════════════════════════════════════════
+## ══════════════════════════════════════════════════
 ## MANDATORY PRE-EDIT PROTOCOL — FOLLOW BEFORE EVERY CHANGE
-## ══════════════════════════════════════════════════════
+## ══════════════════════════════════════════════════
 
 Before touching any file, you MUST complete these steps in order.
 Skipping any step is the #1 cause of breakage in this project.
@@ -320,7 +333,7 @@ If `session` is null after landlord signup, it is a bug — surface it, do not t
 
 ### CONFIG — RUNTIME VARIABLES
 
-`config.js` is generated at server start by `generate-config.js` from Replit Secrets.
+`config.js` is generated at **Cloudflare Pages build time** by `generate-config.js` from environment variables set in the Cloudflare Pages dashboard.
 It sets `window.CONFIG` with: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `IMAGEKIT_URL_ENDPOINT`,
 `GEOAPIFY_API_KEY`, `COMPANY_NAME`, `COMPANY_EMAIL`, `COMPANY_PHONE`, `COMPANY_ADDRESS`, `FEATURES`.
 
@@ -374,12 +387,7 @@ If you cannot confirm an item, say so explicitly so the user knows to test it ma
 
 Your only job is to **edit static files** — HTML, CSS, and the frontend JavaScript files.
 
-The workflow `Start application` runs `node serve.js` which:
-1. Reads `SUPABASE_URL` and `SUPABASE_ANON_KEY` from Replit Secrets
-2. Writes `config.js` so the browser can connect to Supabase
-3. Serves all static files on port 5000
-
-That is the entire local stack. Nothing else runs locally.
+That is the entire scope. Nothing else. No servers. No workflows. No deployment.
 
 ---
 
@@ -453,77 +461,13 @@ payment flow" are WONT FIX by owner decision. Never reopen them.
 
 ### Fix details — read before implementing each issue
 
-**I-029 — sitemap.xml + robots.txt domain fix**
-Have `generate-config.js` read a `SITE_URL` environment variable and rewrite
-both `sitemap.xml` and `robots.txt` at build time, replacing every occurrence
-of `YOUR-DOMAIN.com` with the real domain. Add `SITE_URL` to the required env
-var list with a warning (not a hard failure) if missing. Also add `SITE_URL`
-to `config.example.js` documentation comment.
-
-**I-030 — og:url dynamic fix**
-In `js/components.js`, after the component loader runs, add one line that sets
-`document.querySelector('meta[property="og:url"]')?.setAttribute('content', location.href)`.
-This covers all 7 affected pages in one place. Do not touch the individual
-HTML files. `property.html` already sets `#ogUrl` dynamically — leave it alone.
-
-**I-031 — Build command fix**
-`build.js` was a stale duplicate of `generate-config.js` and has been deleted (Session 019).
-The build command in `package.json` is now simply `node generate-config.js`.
-`generate-config.js` is the single authoritative config generator — do not recreate `build.js`.
-
-**I-032 — Missing ImageKit presets**
-In `generate-config.js`, inside the `transforms` object in the `CONFIG.img`
-function template string, add the two missing presets after `card:`:
-  `gallery_2x: 'tr:w-2400,q-85,f-webp',`
-  `strip:      'tr:w-80,h-60,c-maintain_ratio,q-70,f-webp',`
-Copy exact values from `config.example.js`. These are used by `property.html`
-for retina srcset (`gallery_2x`) and the thumbnail strip (`strip`).
-
-**I-033 — Homepage empty state**
-In `index.html`, in `loadFeaturedListings()`, the current code returns silently
-when `!props || !props.length`. Instead, show a warm empty-state message inside
-`#featuredGrid`: a centred paragraph with an icon, heading "Listings Coming Soon",
-and subtext "We're just getting started — check back shortly for available
-properties." Use existing CSS tokens only (no hardcoded colours). Still call
-`section.style.display = ''` so the section is visible. The empty state must be
-responsive and look intentional, not broken.
-
-**I-034 — COMPANY_EMAIL fallback**
-In `generate-config.js`, change the `COMPANY_EMAIL` line from:
-  `COMPANY_EMAIL: process.env.COMPANY_EMAIL || '',`
-to:
-  `COMPANY_EMAIL: process.env.COMPANY_EMAIL || 'hello@choiceproperties.com',`
-This prevents blank `mailto:` links in nav and footer if the env var is not set.
-
 **I-035 — property.html missing ?id= guard**
 At the top of the inline script in `property.html`, after the `DOMContentLoaded`
 listener opens, check for the `id` param. If missing or empty, redirect to
-`/listings.html` and show a toast via `CP.UI.toast('Property not found.', 'error')`
-before redirecting. Do not show a blank page.
+`/listings.html` immediately. No flash of content, no console errors.
 
 **I-036 — DASHBOARD_URL documentation**
-In `SETUP.md`, in the Supabase Secrets section (wherever `IMAGEKIT_PRIVATE_KEY`
-and other secrets are listed), add `DASHBOARD_URL` with a clear description:
-"Your public site base URL (e.g. https://your-domain.com). Used by
-generate-lease and sign-lease Edge Functions to build the signing link sent
-to tenants. If missing, lease signing links will be broken."
-
----
-
-### After completing all Phase 1 fixes
-
-1. Update each issue's status in `ISSUES.md` (OPEN → RESOLVED)
-2. Update the Summary Snapshot counts in `ISSUES.md`
-3. Add a dated entry to `CHANGELOG.md`
-4. Update `SESSION.md` with a new handoff document
-5. Repackage the full project ZIP and deliver to the owner
-
----
-
-### Content task — not a code fix (owner must do this manually)
-
-Before launch, seed at least 3–5 real or demo listings in the database so the
-homepage Featured Listings section shows live content. The empty state added
-in I-033 protects against a blank section, but a populated marketplace is
-essential for first-impression trust. This cannot be automated — the owner
-must add listings via the landlord dashboard.
+In `SETUP.md`, add a dedicated section for Supabase Edge Function secrets.
+Document `DASHBOARD_URL` explicitly: it must be set to the public Cloudflare Pages
+URL (e.g. `https://choiceproperties.pages.dev`) so that lease signing links in
+outgoing emails resolve correctly. Add it to the required secrets table.

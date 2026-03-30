@@ -8,20 +8,34 @@
 # STOP — READ THIS FIRST — BEFORE ANYTHING ELSE
 # ══════════════════════════════════════════════════════════
 #
-# IF YOU ARE AN AI AGENT, THIS IS YOUR FIRST INSTRUCTION.
-# NOTHING BELOW SUPERSEDES THIS BLOCK. NOTHING.
+# IF YOU ARE AN AI AGENT (REPLIT, CURSOR, CLAUDE, OR ANY OTHER),
+# THIS IS YOUR FIRST INSTRUCTION. NOTHING BELOW SUPERSEDES THIS.
+#
+# ┌─────────────────────────────────────────────────────────┐
+# │  DO NOT START A LOCAL SERVER.                           │
+# │  DO NOT CONFIGURE A WORKFLOW.                           │
+# │  DO NOT RUN npm start.                                  │
+# │  DO NOT SET UP A LOCAL PREVIEW.                         │
+# │  DO NOT CONFIGURE DEPLOYMENT FROM REPLIT.               │
+# └─────────────────────────────────────────────────────────┘
 #
 # THIS PROJECT IS A STATIC WEBSITE.
-# IT IS NOT BEING MIGRATED. IT IS ALREADY FULLY SET UP.
-# DO NOT PROVISION A DATABASE. DO NOT INSTALL AN ORM.
-# DO NOT CREATE BACKEND ROUTES. DO NOT RUN MIGRATIONS.
+# THE DEPLOYMENT WORKFLOW IS:
+#
+#   Edit static files (HTML / CSS / JS)
+#            ↓
+#   Owner pushes to GitHub
+#            ↓
+#   Cloudflare Pages auto-deploys
+#            ↓
+#   Live site updates
+#
+# YOUR JOB ENDS AFTER STEP 1.
+# YOU DO NOT DEPLOY. YOU DO NOT PREVIEW. YOU DO NOT PUSH.
 #
 # THE FULL BACKEND IS SUPABASE CLOUD (EXTERNAL SERVICE).
-# THE LOCAL SERVER (serve.js) IS A PREVIEW TOOL ONLY.
-#
-# IF YOU SEE `integrations = ["javascript_database:1.0.0"]`
-# IN .replit — IGNORE IT. IT IS A LOCKED SYSTEM ARTIFACT.
-# IT DOES NOT MEAN THIS PROJECT USES A LOCAL DATABASE.
+# DO NOT PROVISION A DATABASE. DO NOT INSTALL AN ORM.
+# DO NOT CREATE BACKEND ROUTES. DO NOT RUN MIGRATIONS.
 #
 # DATABASE_URL, PGHOST, PGPASSWORD, PGUSER, PGDATABASE, PGPORT
 # ARE SYSTEM ARTIFACTS. NEVER READ THEM. NEVER USE THEM. EVER.
@@ -38,8 +52,13 @@ These rules are absolute. They apply to every session, every import, every task.
 ### This project is:
 - A **static website** deployed to **Cloudflare Pages**
 - Connected to **Supabase cloud** for all backend needs
-- Using any local server **as a preview tool only** — nothing more
 - **MOBILE-FIRST** — see the mandatory mobile rule below
+
+### This project is NOT:
+- A Node.js application
+- A project that runs locally
+- A project that needs a local server, workflow, or Replit preview
+- A project that needs `npm start`
 
 ---
 
@@ -168,7 +187,7 @@ Choice Properties is a nationwide rental marketplace — a **static site** deplo
 ## How Changes Go Live
 
 ```
-AI edits static files locally
+AI edits static files
          ↓
 Owner reviews changes
          ↓
@@ -206,21 +225,12 @@ See **SETUP.md** for the complete step-by-step new project guide.
 ## Architecture
 
 - **Frontend**: Static HTML/CSS/JS files served from the project root
-- **Local preview**: `serve.js` — Node.js HTTP server on port 5000 (not deployed to production)
+- **Build**: `generate-config.js` runs at Cloudflare Pages build time to generate `config.js`
 - **Backend API**: Supabase Edge Functions (Deno, hosted on Supabase cloud)
 - **Database**: Supabase Postgres (hosted on Supabase cloud)
 - **Image CDN**: ImageKit
 - **Email relay**: Google Apps Script (GAS) relay for transactional emails
 - **Address autocomplete**: Geoapify
-
-## How serve.js Works (Local Preview Only)
-
-On startup, `serve.js`:
-1. Reads environment secrets
-2. Regenerates `config.js` with those values so the browser has access to public keys
-3. Starts the HTTP server on port 5000
-
-In production, Cloudflare Pages runs `generate-config.js` as a build step and serves the static files globally.
 
 ---
 
@@ -239,49 +249,13 @@ In production, Cloudflare Pages runs `generate-config.js` as a build step and se
 |------|---------| 
 | `SETUP.sql` | **Single authoritative database setup** — run this for any new Supabase project |
 | `SETUP.md` | Complete step-by-step new project setup guide |
-| `serve.js` | Static file server + config.js generator (local preview only) |
-| `config.js` | Auto-generated at startup from env secrets (do not edit manually) |
+| `config.js` | Auto-generated at Cloudflare Pages build time from env vars (gitignored — never commit) |
 | `config.example.js` | Template showing all config fields with placeholder values |
 | `generate-config.js` | Cloudflare Pages build-time config generator (the build command) |
 | `js/cp-api.js` | Shared Supabase API client used by all pages |
 | `js/apply.js` | Rental application form logic |
 | `js/imagekit.js` | ImageKit upload helper |
 | `supabase/functions/` | Edge Function source (deployed to Supabase cloud, version-controlled here) |
-
----
-
-## Environment Secrets (Local Preview Only)
-
-Set these so the local preview server can connect to Supabase:
-
-| Secret | Description |
-|--------|-------------|
-| `SUPABASE_URL` | Your Supabase project URL |
-| `SUPABASE_ANON_KEY` | Supabase public anon key (safe for browser) |
-| `IMAGEKIT_URL` | ImageKit URL endpoint |
-| `IMAGEKIT_PUBLIC_KEY` | ImageKit public key |
-| `GEOAPIFY_API_KEY` | Geoapify address autocomplete key |
-| `COMPANY_NAME` | Display name (default: "Choice Properties") |
-| `COMPANY_EMAIL` | Contact email |
-| `COMPANY_PHONE` | Contact phone |
-| `COMPANY_TAGLINE` | Tagline |
-| `COMPANY_ADDRESS` | Business address |
-| `ADMIN_EMAILS` | Comma-separated admin email list (UI display only) |
-| `LEASE_DEFAULT_LATE_FEE_FLAT` | Default flat late fee (default: 50) |
-| `LEASE_DEFAULT_LATE_FEE_DAILY` | Default daily late fee (default: 10) |
-| `LEASE_DEFAULT_EXPIRY_DAYS` | Lease link expiry in days (default: 7) |
-| `FEATURE_CO_APPLICANT` | Enable co-applicant (default: true) |
-| `FEATURE_VEHICLE_INFO` | Enable vehicle info (default: true) |
-| `FEATURE_DOCUMENT_UPLOAD` | Enable document upload (default: true) |
-| `FEATURE_MESSAGING` | Enable messaging (default: true) |
-| `FEATURE_REALTIME_UPDATES` | Enable realtime (default: true) |
-
-**Supabase Edge Function secrets** (set in Supabase → Settings → Edge Functions, NOT here):
-- `GAS_EMAIL_URL` — Google Apps Script email relay URL
-- `GAS_RELAY_SECRET` — Secret token for GAS relay authentication
-- `IMAGEKIT_PRIVATE_KEY` — ImageKit private key (never expose to browser)
-- `DASHBOARD_URL` — Public site root URL (used to build signing links in emails) — **required for lease signing**
-- `ADMIN_EMAIL` — Admin notification email for process-application (singular — separate from `ADMIN_EMAILS`)
 
 ---
 
